@@ -51,54 +51,74 @@ st.set_page_config(page_title="Kelime Ezber", layout="centered")
 
 # --- Başlatma Fonksiyonu ---
 def get_new_word():
-    st.session_state.current_word = random.choice(list(words_dict.keys()))
-    correct = words_dict[st.session_state.current_word]
-    others = random.sample([v for k, v in words_dict.items() if v != correct], 3)
+    # Mevcut kelimeyi rastgele seç
+    current = random.choice(list(words_dict.keys()))
+    st.session_state.current_word = current
+    
+    # Şıkları oluştur
+    correct = words_dict[current]
+    # Yanlış şıklar için diğer tüm anlamları al
+    all_meanings = [v for k, v in words_dict.items() if v != correct]
+    others = random.sample(all_meanings, 3)
+    
     options = others + [correct]
     random.shuffle(options)
     st.session_state.options = options
-    st.session_state.answer_checked = False
 
-# --- Session State Kontrolü (Hatanın Çözümü Burada) ---
-if 'current_word' not in st.session_state:
+# --- Session State İlk Kurulum ---
+if 'current_word' not in st.session_state or 'options' not in st.session_state:
     get_new_word()
+
 if 'score' not in st.session_state:
     st.session_state.score = 0
 
 # --- Arayüz ---
-st.title("📚 Kelime Öğretici")
+st.title("📚 İngilizce Kelime Hazinesi")
 
-mode = st.radio("Mod Seç:", ["Yazma", "Test"], horizontal=True)
+# Mod seçimi
+mode = st.radio("Bir çalışma yöntemi seçin:", ["Yazma Modu", "Test Modu"], horizontal=True)
 
 st.divider()
-st.subheader(f"Kelime: :orange[{st.session_state.current_word}]")
 
-if mode == "Yazma":
-    user_ans = st.text_input("Türkçe karşılığı:", key="text_input").strip().lower()
+# Kelime Gösterimi (Güvenli erişim için .get kullanıyoruz)
+word = st.session_state.get('current_word', 'Bekleniyor...')
+st.subheader(f"Kelime: :blue[{word}]")
+
+if mode == "Yazma Modu":
+    user_ans = st.text_input("Türkçe anlamını yazın:", key="text_input").strip().lower()
     if st.button("Kontrol Et"):
-        correct_ans = words_dict[st.session_state.current_word].lower()
-        if user_ans and (user_ans in correct_ans or any(user_ans in m.strip() for m in correct_ans.split(','))):
-            st.success(f"Doğru! ✅ {words_dict[st.session_state.current_word]}")
+        correct_ans = words_dict[word].lower()
+        # Virgüllü anlamların herhangi birini içeriyor mu kontrolü
+        if user_ans and any(user_ans in m.strip() for m in correct_ans.split(',')):
+            st.success(f"Harika! ✅ Doğru cevap: {words_dict[word]}")
             st.session_state.score += 1
         else:
-            st.error(f"Yanlış! ❌ Doğru cevap: {words_dict[st.session_state.current_word]}")
+            st.error(f"Maalesef... ❌ Doğru cevap: {words_dict[word]}")
 
 else:
-    # Test Modu
-    choice = st.radio("Doğru seçeneği bulun:", st.session_state.options)
-    if st.button("Onayla"):
-        if choice == words_dict[st.session_state.current_word]:
-            st.success("Tebrikler! Doğru. 🎉")
-            st.session_state.score += 1
-        else:
-            st.error(f"Hatalı! Doğru: {words_dict[st.session_state.current_word]}")
+    # Test Modu - Güvenli Liste Erişimi
+    current_options = st.session_state.get('options', [])
+    
+    if current_options:
+        choice = st.radio("Hangi seçenek doğru?", current_options)
+        if st.button("Seçimi Onayla"):
+            if choice == words_dict[word]:
+                st.success("Tebrikler! Doğru şık. 🎉")
+                st.session_state.score += 1
+            else:
+                st.error(f"Yanlış! Doğru cevap şuydu: {words_dict[word]}")
+    else:
+        st.warning("Seçenekler yüklenemedi. Lütfen 'Sıradaki Kelime'ye basın.")
 
-if st.button("Sonraki Kelime ➡️"):
+# Sayfa sonu butonları
+if st.button("Sıradaki Kelime ➡️"):
     get_new_word()
     st.rerun()
 
-# İstatistikler
-st.sidebar.metric("Puan", st.session_state.score)
+# Kenar Çubuğu
+st.sidebar.metric("Toplam Puan", st.session_state.score)
 if st.sidebar.button("Puanı Sıfırla"):
     st.session_state.score = 0
     st.rerun()
+st.sidebar.write("---")
+st.sidebar.caption("WhatsApp Image 2026-05-03 at 20.03.38.jpg")
