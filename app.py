@@ -1,7 +1,7 @@
 import streamlit as st
 import random
 
-# Veri seti: WhatsApp Image 2026-05-03 at 20.03.38.jpg içeriği
+# B. Yalçınkaya
 words_dict = {
     "Against": "karşı, zıt", "Amazing": "harika, şaşırtıcı", "Animation": "animasyon", 
     "Answer": "cevap vermek", "Aquarium": "akvaryum", "Assignment": "ödev, görev", 
@@ -47,78 +47,102 @@ words_dict = {
     "Write": "yazmak", "Year": "yıl"
 }
 
-st.set_page_config(page_title="Kelime Ezber", layout="centered")
+st.set_page_config(page_title="Kelime Uzmanı", layout="centered")
 
 # --- Başlatma Fonksiyonu ---
 def get_new_word():
-    # Mevcut kelimeyi rastgele seç
-    current = random.choice(list(words_dict.keys()))
+    # Kalan kelimeleri bul (toplam eksi öğrenilenler)
+    remaining_words = [w for w in words_dict.keys() if w not in st.session_state.learned_words]
+    
+    if not remaining_words:
+        st.session_state.all_done = True
+        return
+
+    # %60 ihtimalle yanlış yapılanlardan sor (eğer yanlış listesindeyse ve hala öğrenilmediyse)
+    wrong_candidates = [w for w in st.session_state.wrong_answers if w in remaining_words]
+    
+    if wrong_candidates and random.random() < 0.6:
+        current = random.choice(wrong_candidates)
+    else:
+        current = random.choice(remaining_words)
+        
     st.session_state.current_word = current
     
-    # Şıkları oluştur
+    # Şık hazırlama
     correct = words_dict[current]
-    # Yanlış şıklar için diğer tüm anlamları al
-    all_meanings = [v for k, v in words_dict.items() if v != correct]
-    others = random.sample(all_meanings, 3)
-    
+    others = random.sample([v for k, v in words_dict.items() if v != correct], 3)
     options = others + [correct]
     random.shuffle(options)
     st.session_state.options = options
 
-# --- Session State İlk Kurulum ---
-if 'current_word' not in st.session_state or 'options' not in st.session_state:
-    get_new_word()
-
+# --- Session State Kurulumu ---
+if 'learned_words' not in st.session_state:
+    st.session_state.learned_words = set()
+if 'wrong_answers' not in st.session_state:
+    st.session_state.wrong_answers = set()
 if 'score' not in st.session_state:
     st.session_state.score = 0
+if 'all_done' not in st.session_state:
+    st.session_state.all_done = False
+if 'current_word' not in st.session_state:
+    get_new_word()
 
 # --- Arayüz ---
-st.title("📚 İngilizce Kelime Hazinesi")
+st.title("🏆 Kelime Master")
 
-# Mod seçimi
-mode = st.radio("Bir çalışma yöntemi seçin:", ["Yazma Modu", "Test Modu"], horizontal=True)
-
-st.divider()
-
-# Kelime Gösterimi (Güvenli erişim için .get kullanıyoruz)
-word = st.session_state.get('current_word', 'Bekleniyor...')
-st.subheader(f"Kelime: :blue[{word}]")
-
-if mode == "Yazma Modu":
-    user_ans = st.text_input("Türkçe anlamını yazın:", key="text_input").strip().lower()
-    if st.button("Kontrol Et"):
-        correct_ans = words_dict[word].lower()
-        # Virgüllü anlamların herhangi birini içeriyor mu kontrolü
-        if user_ans and any(user_ans in m.strip() for m in correct_ans.split(',')):
-            st.success(f"Harika! ✅ Doğru cevap: {words_dict[word]}")
-            st.session_state.score += 1
-        else:
-            st.error(f"Maalesef... ❌ Doğru cevap: {words_dict[word]}")
-
+# TÜM KELİMELER BİTTİĞİNDE GÖSTERİLECEK EKRAN
+if st.session_state.all_done:
+    st.balloons()
+    st.success("🎉 TEBRİKLER! Listedeki tüm kelimeleri başarıyla tamamladın!")
+    st.write(f"Final Skorun: **{st.session_state.score}**")
+    if st.button("Hepsini Sıfırla ve Yeniden Başla"):
+        st.session_state.learned_words = set()
+        st.session_state.wrong_answers = set()
+        st.session_state.score = 0
+        st.session_state.all_done = False
+        get_new_word()
+        st.rerun()
 else:
-    # Test Modu - Güvenli Liste Erişimi
-    current_options = st.session_state.get('options', [])
-    
-    if current_options:
-        choice = st.radio("Hangi seçenek doğru?", current_options)
-        if st.button("Seçimi Onayla"):
-            if choice == words_dict[word]:
-                st.success("Tebrikler! Doğru şık. 🎉")
-                st.session_state.score += 1
-            else:
-                st.error(f"Yanlış! Doğru cevap şuydu: {words_dict[word]}")
+    # İlerleme Çubuğu
+    progress = len(st.session_state.learned_words) / len(words_dict)
+    st.progress(progress)
+    st.write(f"İlerleme: {len(st.session_state.learned_words)} / {len(words_dict)}")
+
+    mode = st.radio("Mod:", ["Yazma", "Test"], horizontal=True)
+    word = st.session_state.current_word
+    st.subheader(f"Kelime: :orange[{word}]")
+
+    if mode == "Yazma":
+        user_ans = st.text_input("Tahmin:", key="txt").strip().lower()
     else:
-        st.warning("Seçenekler yüklenemedi. Lütfen 'Sıradaki Kelime'ye basın.")
+        choice = st.radio("Seçiniz:", st.session_state.options, key="radio")
 
-# Sayfa sonu butonları
-if st.button("Sıradaki Kelime ➡️"):
-    get_new_word()
-    st.rerun()
+    if st.button("Kontrol Et / Onayla"):
+        correct_ans = words_dict[word].lower()
+        is_correct = False
+        
+        if mode == "Yazma":
+            if user_ans and any(user_ans in m.strip() for m in correct_ans.split(',')):
+                is_correct = True
+        else:
+            if choice == words_dict[word]:
+                is_correct = True
+                
+        if is_correct:
+            st.success(f"Harika! +10 Puan.")
+            st.session_state.score += 10
+            st.session_state.learned_words.add(word)
+            if word in st.session_state.wrong_answers:
+                st.session_state.wrong_answers.remove(word)
+        else:
+            st.error(f"Hata! Doğru cevap: {words_dict[word]}")
+            st.session_state.wrong_answers.add(word)
 
-# Kenar Çubuğu
-st.sidebar.metric("Toplam Puan", st.session_state.score)
-if st.sidebar.button("Puanı Sıfırla"):
-    st.session_state.score = 0
-    st.rerun()
-st.sidebar.write("---")
-st.sidebar.caption("WhatsApp Image 2026-05-03 at 20.03.38.jpg")
+    if st.button("Sonraki Kelime ➡️"):
+        get_new_word()
+        st.rerun()
+
+# Sidebar Bilgileri
+st.sidebar.metric("Puan", st.session_state.score)
+st.sidebar.write(f"Öğrenilen: {len(st.session_state.learned_words)}")
+st.sidebar.write(f"Zayıf Kelime: {len(st.session_state.wrong_answers)}")
