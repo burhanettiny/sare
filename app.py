@@ -19,7 +19,7 @@ words_data = {
     "Bookshop": ["kitap dükkanı", "I bought this dictionary from the ___ downtown."],
     "Bookworm": ["kitap kurdu", "She reads three books a week; she is a real ___."],
     "Borrow": ["ödünç almak", "Could I ___ your laptop for a few hours?"],
-    "Box": "kutu", # Kısa tanımlar için otomatik cümle oluşturucu eklenebilir
+    "Box": ["kutu", "Put all the toys inside the wooden ___."],
     "Boy": ["erkek çocuk", "The ___ is playing football in the garden."],
     "Break": ["kırmak", "Be careful with that glass, don't ___ it!"],
     "Buy": ["satın almak", "I want to ___ a new computer for my research."],
@@ -128,7 +128,7 @@ words_data = {
     "Skates": ["patenler", "I need to buy new ___ for the winter."],
     "Sofa": ["kanepe", "The ___ in the living room is very comfortable."],
     "Someone": ["birileri", "___ is knocking at the door."],
-    "Something": ["bir şeyler", "I want to eat ___ sweet."],
+    "Something": ["bir şeyler", "I want to ___ eat something sweet."],
     "Star": ["yıldız", "Look at the bright ___ in the sky."],
     "Story": ["hikaye", "Tell me a ___ before I go to sleep."],
     "Story writer": ["hikaye yazarı", "He is a famous ___ for children."],
@@ -149,9 +149,9 @@ words_data = {
     "Year": ["yıl", "There are twelve months in a ___."]
 }
 
-st.set_page_config(page_title="Cloze Test Master", layout="centered")
+st.set_page_config(page_title="Karışık Kelime Avcısı", layout="centered")
 
-# --- Fonksiyonlar ---
+# --- Başlatma Fonksiyonu ---
 def get_new_question():
     remaining = [w for w in words_data.keys() if w not in st.session_state.learned_words]
     
@@ -159,92 +159,70 @@ def get_new_question():
         st.session_state.all_done = True
         return
 
-    # Yanlış yapılanlara öncelik ver
+    # Soru Tipi Seç: %50 Cümle/İngilizce, %50 Kelime/Türkçe
+    st.session_state.q_type = random.choice(["SENTENCE", "VOCAB_TR"])
+    
+    # Kelime Seç (Yanlış yapılanlara öncelik)
     wrong_candidates = [w for w in st.session_state.wrong_answers if w in remaining]
-    if wrong_candidates and random.random() < 0.5:
-        current = random.choice(wrong_candidates)
-    else:
-        current = random.choice(remaining)
-        
+    current = random.choice(wrong_candidates) if (wrong_candidates and random.random() < 0.6) else random.choice(remaining)
+    
     st.session_state.current_word = current
+    correct_val = current if st.session_state.q_type == "SENTENCE" else words_data[current][0]
     
     # Şık hazırlama
-    correct = current
-    all_keys = list(words_data.keys())
-    others = random.sample([k for k in all_keys if k != correct], 3)
-    options = others + [correct]
+    if st.session_state.q_type == "SENTENCE":
+        others = random.sample([k for k in words_data.keys() if k != current], 3)
+    else:
+        others = random.sample([v[0] for k, v in words_data.items() if k != current], 3)
+        
+    options = others + [correct_val]
     random.shuffle(options)
     st.session_state.options = options
-    st.session_state.answered = False
 
-# --- Session State ---
-if 'learned_words' not in st.session_state:
-    st.session_state.learned_words = set()
-if 'wrong_answers' not in st.session_state:
-    st.session_state.wrong_answers = set()
-if 'score' not in st.session_state:
-    st.session_state.score = 0
-if 'all_done' not in st.session_state:
-    st.session_state.all_done = False
-if 'current_word' not in st.session_state:
-    get_new_question()
+# --- State ---
+if 'learned_words' not in st.session_state: st.session_state.learned_words = set()
+if 'wrong_answers' not in st.session_state: st.session_state.wrong_answers = set()
+if 'score' not in st.session_state: st.session_state.score = 0
+if 'all_done' not in st.session_state: st.session_state.all_done = False
+if 'current_word' not in st.session_state: get_new_question()
 
 # --- Arayüz ---
-st.title("📖 Cümle İçinde Kelime Ezberleme")
-st.write("Görseldeki tüm kelimelerle hazırlanan akıllı çalışma sistemi.")
+st.title("🎢 Karışık İngilizce Antrenmanı")
 
 if st.session_state.all_done:
     st.balloons()
-    st.success("🎉 İnanılmaz! 130+ kelimenin tamamını cümle içinde öğrendin!")
-    st.write(f"Final Skorunuz: **{st.session_state.score}**")
-    if st.button("Sıfırla ve Baştan Başla"):
-        st.session_state.learned_words = set()
-        st.session_state.wrong_answers = set()
-        st.session_state.score = 0
-        st.session_state.all_done = False
-        get_new_question()
-        st.rerun()
+    st.success("Tebrikler! Listeyi bitirdin.")
+    if st.button("Tekrar Başla"):
+        st.session_state.learned_words, st.session_state.score, st.session_state.all_done = set(), 0, False
+        get_new_question(); st.rerun()
 else:
-    # İlerleme
-    total = len(words_data)
-    current_count = len(st.session_state.learned_words)
-    st.progress(current_count / total)
-    st.caption(f"İlerleme: {current_count} / {total} kelime tamamlandı.")
-
     word = st.session_state.current_word
-    meaning = words_data[word][0]
-    sentence = words_data[word][1]
+    st.progress(len(st.session_state.learned_words) / len(words_data))
+    
+    if st.session_state.q_type == "SENTENCE":
+        st.subheader("Boşluğu Tamamla:")
+        st.info(f"💡 Anlamı: {words_data[word][0]}")
+        st.markdown(f"### {words_data[word][1]}")
+    else:
+        st.subheader("Türkçe Karşılığını Seç:")
+        st.write("---")
+        st.header(f":blue[{word}]")
 
-    st.info(f"💡 **Anlamı:** {meaning}")
-    st.markdown(f"### Cümle: \n > {sentence}")
+    choice = st.radio("Seçenekler:", st.session_state.options, index=None)
 
-    # Çoktan Seçmeli
-    choice = st.radio("Boşluğa hangisi gelmeli?", st.session_state.options, index=None, key="choice_radio")
+    if st.button("Cevabı Onayla"):
+        correct_answer = word if st.session_state.q_type == "SENTENCE" else words_data[word][0]
+        if choice == correct_answer:
+            st.success("Doğru! 🎉")
+            st.session_state.score += 15
+            st.session_state.learned_words.add(word)
+            if word in st.session_state.wrong_answers: st.session_state.wrong_answers.remove(word)
+        else:
+            st.error(f"Hatalı! Doğru cevap: **{correct_answer}**")
+            st.session_state.wrong_answers.add(word)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Cevabı Onayla", use_container_width=True):
-            if choice == word:
-                st.success(f"Harika! +20 Puan. \nCümle: {sentence.replace('___', '**'+word+'**')}")
-                st.session_state.score += 20
-                st.session_state.learned_words.add(word)
-                if word in st.session_state.wrong_answers:
-                    st.session_state.wrong_answers.remove(word)
-                st.session_state.answered = True
-            else:
-                st.error(f"Yanlış! Doğru cevap: **{word}**")
-                st.session_state.wrong_answers.add(word)
-                st.session_state.score -= 5
+    if st.button("Sonraki Soru ➡️"):
+        get_new_question(); st.rerun()
 
-    with col2:
-        if st.button("Sıradaki Kelime ➡️", use_container_width=True):
-            get_new_question()
-            st.rerun()
-
-# --- Skor Tablosu ---
-st.sidebar.metric("Skorun", st.session_state.score)
-st.sidebar.write(f"Zayıf Kelime Sayısı: {len(st.session_state.wrong_answers)}")
-if st.sidebar.button("İlerlemeyi Sıfırla"):
-    st.session_state.learned_words = set()
-    st.session_state.score = 0
-    st.rerun()
+st.sidebar.metric("Skor", st.session_state.score)
+st.sidebar.write(f"Zayıf: {len(st.session_state.wrong_answers)}")
