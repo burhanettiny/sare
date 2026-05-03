@@ -47,63 +47,58 @@ words_dict = {
     "Write": "yazmak", "Year": "yıl"
 }
 
-st.set_page_config(page_title="Kelime Avcısı", layout="centered")
+st.set_page_config(page_title="Kelime Ezber", layout="centered")
 
-# --- Session State Hazırlığı ---
-if 'current_word' not in st.session_state:
-    st.session_state.current_word = random.choice(list(words_dict.keys()))
-    st.session_state.score = 0
-    st.session_state.options = []
-
+# --- Başlatma Fonksiyonu ---
 def get_new_word():
     st.session_state.current_word = random.choice(list(words_dict.keys()))
-    # Çoklu seçim için 4 şık hazırla
     correct = words_dict[st.session_state.current_word]
     others = random.sample([v for k, v in words_dict.items() if v != correct], 3)
     options = others + [correct]
     random.shuffle(options)
     st.session_state.options = options
+    st.session_state.answer_checked = False
 
-if not st.session_state.options:
+# --- Session State Kontrolü (Hatanın Çözümü Burada) ---
+if 'current_word' not in st.session_state:
     get_new_word()
+if 'score' not in st.session_state:
+    st.session_state.score = 0
 
 # --- Arayüz ---
-st.title("🎓 İngilizce Kelime Öğrenme")
+st.title("📚 Kelime Öğretici")
 
-mode = st.radio("Çalışma Modu Seçin:", ["Yazarak Tahmin Et", "Çoktan Seçmeli (Test)"], horizontal=True)
+mode = st.radio("Mod Seç:", ["Yazma", "Test"], horizontal=True)
 
 st.divider()
-st.subheader(f"Kelime: :blue[{st.session_state.current_word}]")
+st.subheader(f"Kelime: :orange[{st.session_state.current_word}]")
 
-if mode == "Yazarak Tahmin Et":
-    user_ans = st.text_input("Türkçe karşılığını yazın:", key="text_input").strip().lower()
+if mode == "Yazma":
+    user_ans = st.text_input("Türkçe karşılığı:", key="text_input").strip().lower()
     if st.button("Kontrol Et"):
         correct_ans = words_dict[st.session_state.current_word].lower()
         if user_ans and (user_ans in correct_ans or any(user_ans in m.strip() for m in correct_ans.split(','))):
-            st.success(f"Harika! Doğru cevap: {words_dict[st.session_state.current_word]}")
+            st.success(f"Doğru! ✅ {words_dict[st.session_state.current_word]}")
             st.session_state.score += 1
         else:
-            st.error(f"Hata! Doğru cevap: {words_dict[st.session_state.current_word]}")
+            st.error(f"Yanlış! ❌ Doğru cevap: {words_dict[st.session_state.current_word]}")
 
 else:
-    # Çoktan Seçmeli Mod
-    choice = st.radio("Doğru anlamı seçin:", st.session_state.options, key="radio_choice")
-    if st.button("Cevabı Onayla"):
+    # Test Modu
+    choice = st.radio("Doğru seçeneği bulun:", st.session_state.options)
+    if st.button("Onayla"):
         if choice == words_dict[st.session_state.current_word]:
-            st.success("Tebrikler, doğru şık!")
+            st.success("Tebrikler! Doğru. 🎉")
             st.session_state.score += 1
         else:
-            st.error(f"Yanlış! Doğru cevap şuydu: {words_dict[st.session_state.current_word]}")
+            st.error(f"Hatalı! Doğru: {words_dict[st.session_state.current_word]}")
 
 if st.button("Sonraki Kelime ➡️"):
     get_new_word()
     st.rerun()
 
-# --- Sidebar ---
-st.sidebar.title("📈 Başarım")
-st.sidebar.metric("Toplam Puan", st.session_state.score)
+# İstatistikler
+st.sidebar.metric("Puan", st.session_state.score)
 if st.sidebar.button("Puanı Sıfırla"):
     st.session_state.score = 0
     st.rerun()
-
-st.sidebar.info("Kaynak: WhatsApp Image 2026-05-03 at 20.03.38.jpg")
