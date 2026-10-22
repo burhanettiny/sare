@@ -361,13 +361,30 @@ def pronounce(text):
         return None
 
 
-def spell_hint(word):
-    """'Keep fit' -> 'K _ _ _   _ _ _'"""
-    parts = []
-    for i, part in enumerate(word.split()):
-        letters = [part[0] if i == 0 else "_"] + ["_"] * (len(part) - 1)
+def spell_hint(word, revealed=1):
+    """İlk `revealed` harfi açık gösterir: 'Keep fit', 2 -> 'K e _ _   _ _ _'"""
+    parts, count = [], 0
+    for part in word.split():
+        letters = []
+        for ch in part:
+            letters.append(ch if count < revealed else "_")
+            count += 1
         parts.append(" ".join(letters))
     return "     ".join(parts)
+
+
+def letter_tiles(letters):
+    tile = ("display:inline-block;min-width:2.2rem;padding:6px 8px;margin:4px;border-radius:8px;"
+            "background:#fff3cd;border:2px solid #f0ad4e;color:#333;font-size:1.4rem;"
+            "font-weight:bold;text-align:center")
+    return ("<div style='text-align:center'>"
+            + "".join(f"<span style='{tile}'>{ch}</span>" for ch in letters) + "</div>")
+
+
+def reveal_letter():
+    q = st.session_state.q
+    total = len(q["word"].replace(" ", ""))
+    q["revealed"] = min(q["revealed"] + 1, total - 1)  # son harfi açmıyoruz
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +431,12 @@ def new_question():
     elif qtype == "SPELL":
         q["correct"] = word
         q["options"] = []
+        letters = list(word.replace(" ", "").lower())
+        if len(set(letters)) > 1:
+            while "".join(letters) == word.replace(" ", "").lower():
+                random.shuffle(letters)
+        q["letters"] = letters
+        q["revealed"] = 1
     else:  # TR_EN, SENTENCE, LISTEN
         q["correct"] = word
         q["options"] = distract + [word]
@@ -438,7 +461,8 @@ def answer(opt):
         ss.correct_total += 1
         ss.streak += 1
         ss.best_streak = max(ss.best_streak, ss.streak)
-        bonus = 10 if ss.q["type"] == "SPELL" else 0  # yazmak daha zor
+        # yazmak daha zor: +10 bonus, açılan her ekstra harf bonusu 3 azaltır
+        bonus = max(0, 10 - 3 * (ss.q["revealed"] - 1)) if ss.q["type"] == "SPELL" else 0
         ss.score += 10 + bonus + (5 if ss.streak >= 3 else 0)
         ss.counts[word] = ss.counts.get(word, 0) + 1
         ss.wrong.discard(word)
@@ -540,7 +564,14 @@ with tab_game:
             st.subheader("İngilizcesini yaz!")
             big(tr, "#2ca02c")
             st.markdown(f"<p style='text-align:center;font-size:1.6rem;letter-spacing:2px'>"
-                        f"{spell_hint(word)}</p>", unsafe_allow_html=True)
+                        f"{spell_hint(word, q['revealed'])}</p>", unsafe_allow_html=True)
+            st.caption("🔤 Kelimenin harfleri (karışık sırada):")
+            st.markdown(letter_tiles(q["letters"]), unsafe_allow_html=True)
+            if " " in word:
+                st.caption(f"ℹ️ Bu cevap {len(word.split())} kelimeden oluşuyor, aralarına boşluk koy.")
+            total_letters = len(word.replace(" ", ""))
+            if not answered and q["revealed"] < total_letters - 1:
+                st.button("💡 Bir harf daha aç", on_click=reveal_letter, key=f"reveal_{ss.qid}")
         elif q["type"] == "LISTEN":
             st.subheader("Dinle ve duyduğun kelimeyi seç 🎧")
             st.audio(pronounce(word), format="audio/mp3")
